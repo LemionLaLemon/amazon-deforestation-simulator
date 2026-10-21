@@ -1,0 +1,6 @@
+{
+    "nasmIde.libraries": [
+        "c",
+        "ncurses"
+    ]
+}
