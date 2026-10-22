@@ -1,6 +1,6 @@
 %ifndef DIALOG_INC
 %define DIALOG_INC
 
-extern WelcomeDialog
+extern Dialog.WelcomeDialog, Dialog.Tutorial2Dialog, Dialog.Tutorial3Dialog
 
 %endif

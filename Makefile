@@ -13,6 +13,7 @@ TARGET   := $(BUILD_DIR)/$(APP)
 STRIPPED_TARGET := $(BUILD_DIR)/$(APP)-stripped
 
 NASMFLAGS := -f elf64 -g -F dwarf
+DEPFILES := $(OBJECTS:.o=.d)
 LDFLAGS   := -no-pie -z noseparate-code
 LDLIBS    := -lc -lncursesw
 
@@ -38,7 +39,7 @@ $(TARGET): $(OBJECTS)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.asm
 	@mkdir -p $(BUILD_DIR)
-	$(NASM) $(NASMFLAGS) -o $@ $<
+	$(NASM) $(NASMFLAGS) -MD $(BUILD_DIR)/$*.d -o $@ $<
 
 run: $(TARGET)
 	./$(TARGET)
@@ -48,3 +49,5 @@ debug: $(TARGET)
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+-include $(DEPFILES)
