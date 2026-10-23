@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "nasm",
+            "request": "launch",
+            "name": "Debug NASM program (gdb)",
+            "program": "${workspaceFolder}/build/deforest",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "stopOnEntry": true,
+            "preLaunchTask": "NASM IDE: make"
+        }
+    ]
+}

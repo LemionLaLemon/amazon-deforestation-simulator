@@ -1,9 +1,15 @@
 default rel
 
-global Choices.Quit, Choices.CursorPrompt, Choices.Next
+global Choices.Quit, Choices.CursorPrompt, Choices.Next, Choices.DirUp, Choices.DirDn, Choices.DirR, Choices.DirL, Choices.ChopTree, Choices.CancelTreeSelection
 
 section .rodata:
 Choices:
-.Next db "Next", 10, 0
+.Next db "Continue", 10, 0
 .Quit db "Quit the game", 10, 0
 .CursorPrompt db 10, "Name> ", 0
+.ChopTree db "Chop tree", 10, 0
+.DirUp db "Up", 10, 0
+.DirDn db "Down", 10, 0
+.DirL db "Left", 10, 0
+.DirR db "Right", 10, 0
+.CancelTreeSelection db "Cancel Tree Selection", 10, 0

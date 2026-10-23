@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "NASM IDE: make",
+            "type": "shell",
+            "command": "make",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}

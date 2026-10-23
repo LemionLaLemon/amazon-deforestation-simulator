@@ -1,5 +1,5 @@
 default rel
-global Dialog.WelcomeDialog, Dialog.Tutorial2Dialog, Dialog.Tutorial3Dialog
+global Dialog.WelcomeDialog, Dialog.Tutorial2Dialog, Dialog.Tutorial3Dialog, Dialog.Day, Dialog.TurnsRemaining, Dialog.DayReport, Dialog.TreesChopped, Dialog.TreesChoppedToday, Dialog.ChooseATree
 
 section .rodata
 Dialog:
@@ -13,7 +13,7 @@ Dialog:
 .Tutorial2Dialog:
     db "You can use the W A S D keys to move around the scene.", 10
     db "There are a limit number of turns in a day.", 10
-    db "The limit can be seen in the bottom right of the responses window.", 10
+    db "The limit will be displayed at the top of this window", 10
     db "Additional options may be provided in the responses window based on context.", 10
     db 10
     db "For example, press 1 to continue to the next tutorial.", 0
@@ -21,6 +21,14 @@ Dialog:
 .Tutorial3Dialog:
     db "You can always press the escape key to exit the game.", 10
     db "Your game save will NOT be saved!", 10
+    db "Protestors will spawn at the beginning of each day", 10
     db 10
     db "Please, do not cause too much harm to the protesters.", 10
     db "Press 1 to continue to the game.", 0
+
+.Day db "Day ", 0
+.TurnsRemaining db "/100 turns remaining this day", 10, 0
+.DayReport db "DAY REPORT", 10, 0
+.TreesChopped db "Trees Chopped: ", 0
+.TreesChoppedToday db "   Today: ", 0
+.ChooseATree db "Choose a direction to chop in", 10, 0

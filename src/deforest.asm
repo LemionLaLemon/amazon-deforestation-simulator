@@ -48,6 +48,7 @@ extern waddch
 extern mvwaddnwstr
 extern getmaxx
 extern getmaxy
+extern wprintw
 
 ; game assets
 %include "src/dialog.inc"
@@ -97,6 +98,8 @@ section .data
     space db ' ', 0
     closeParenthesis db ')', 0
 
+    IntegerFormat db "%u", 0
+
     Tree dd 0x2663, 0
 
     EmptyString db 0
@@ -109,6 +112,8 @@ section .data
     %define STATE_TUTORIAL2 1
     %define STATE_TUTORIAL3 2
     %define STATE_GAME 3
+    %define STATE_TREE_SELECTION 4
+    %define STATE_DAY_REPORT 5
 
     GameState dd STATE_TUTORIAL1
 section .bss
@@ -144,6 +149,19 @@ section .bss
     GameWindowHeight resd 1
     GameWindowWidth resd 1
 
+    %define TurnsPerDay 100
+    DayTurnCount resd 1
+    Day resd 1
+
+    ; global statistics
+    TreesTotal resd 1
+    TreesChopped resd 1
+    ; day statistics
+    DayTreesChopped resd 1
+
+    CameraX resd 1
+    CameraY resd 1
+
 section .text
 %macro Cprintf 0
     xor eax, eax
@@ -163,6 +181,7 @@ section .text
     call addChoice
 %endmacro
 main:
+    ; ncurses setup
     sub rsp, 8
     mov edi, 6 ; LC_ALL
     mov rsi, EmptyString
@@ -173,14 +192,14 @@ main:
     jz exit
     
     call cbreak
-    call noecho
+    call noecho ; stuff inputs dont print to terminal
 
     mov rdi, [stdscr]
     mov esi, 1
     call keypad
 
     xor edi, edi
-    call curs_set
+    call curs_set ; hide cursor
 
     ; very random position to seed the random function
     xor edi, edi
@@ -192,7 +211,7 @@ main:
     mov edi, 100
     call timeout
 
-    ; Windows
+    ; Make new windows
     mov edi, [LINES]
     shr edi, 1
     sub edi, 2
@@ -250,12 +269,29 @@ main:
         call rand
         and eax, 1
 
+        test eax, eax
+        jz .notTree
+
+        inc dword [TreesTotal]
         mov [Map + r12], byte al
 
+        .notTree:
         inc r12
     cmp r12, (MapSize * MapSize)
     jb .loop
 
+    ; clear 31, 31
+    mov byte [Map + 31 * MapSize + 31], TILE_EMPTY
+
+    ; initial player position
+    mov dword [PlayerX], 31
+    mov dword [PlayerY], 31
+
+    ; initialize the day turn count so the player can even do anything
+    mov dword [DayTurnCount], TurnsPerDay
+    mov dword [Day], 1
+
+    ; main program loop
     mainloop:
         mov dword [ChoiceCount], 0
         call erase
@@ -283,17 +319,26 @@ main:
         mov rdx, Tree
         call mvaddwstr
 
-        mov eax, [GameState]
-        cmp eax, STATE_TUTORIAL1
-        je tutorial1
-        cmp eax, STATE_TUTORIAL2
-        je tutorial2
-        cmp eax, STATE_TUTORIAL3
-        je tutorial3
-        cmp eax, STATE_GAME
-        je game
+        cmp [DayTurnCount], 0
+        jnz .dayNotOver
+        mov [GameState], STATE_DAY_REPORT
 
-        jmp render
+        .dayNotOver:
+            mov eax, [GameState]
+            cmp eax, STATE_TUTORIAL1
+            je tutorial1
+            cmp eax, STATE_TUTORIAL2
+            je tutorial2
+            cmp eax, STATE_TUTORIAL3
+            je tutorial3
+            cmp eax, STATE_GAME
+            je game
+            cmp eax, STATE_TREE_SELECTION
+            je treeSelection
+            cmp eax, STATE_DAY_REPORT
+            je dayReport
+
+            jmp render
 
     jmp mainloop
 
@@ -339,8 +384,170 @@ main:
             ret
 
     game:
+        ; Day X\n
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.Day
+        call waddstr
+
+        mov rdi, [DialogWindow]
+        mov rsi, IntegerFormat
+        mov edx, [Day]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [DialogWindow]
+        mov esi, 10
+        call waddch
+
+        ; X/Y turns remaining this day, 10, 0
+        mov rdi, [DialogWindow]
+        mov rsi, IntegerFormat
+        mov edx, [DayTurnCount]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.TurnsRemaining
+        call waddstr
+
+        call IfNearTree
+        test eax, eax
+        jz .notNearTree
+
+        AddChoice "1", Choices.ChopTree, treeRoutine
+
+        .notNearTree:
+
         call renderMap
         jmp render
+    
+    dayReport:
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.DayReport
+        call waddstr
+
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.TreesChopped
+        call waddstr
+
+        mov rdi, [DialogWindow]
+        mov rsi, IntegerFormat
+        mov edx, [TreesChopped]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [DialogWindow]
+        mov esi, '/'
+        call waddch
+
+        mov rdi, [DialogWindow]
+        mov rsi, IntegerFormat
+        mov edx, [TreesTotal]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [DialogWindow]
+        mov rsi, 10
+        call waddch
+
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.TreesChoppedToday
+        call waddstr
+
+        mov rdi, [DialogWindow]
+        mov rsi, IntegerFormat
+        mov edx, [DayTreesChopped]
+        call wprintw
+
+        AddChoice "n", Choices.Next, .newday
+
+        call renderMap
+        jmp render
+
+        .newday:
+            inc dword [Day]
+            mov [DayTreesChopped], 0
+            mov [DayTurnCount], TurnsPerDay
+            mov [GameState], STATE_GAME
+            ret
+
+    treeRoutine:
+        mov dword [GameState], STATE_TREE_SELECTION
+        ret
+
+    treeSelection:
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.ChooseATree
+        call waddstr
+
+        AddChoice "1", Choices.CancelTreeSelection, .cancel
+        AddChoice "w", Choices.DirUp, .chopUp
+        AddChoice "a", Choices.DirL, .chopLeft
+        AddChoice "s", Choices.DirDn, .chopDown
+        AddChoice "d", Choices.DirR, .chopRight
+
+        call renderMap
+        jmp render
+
+        .chopUp:
+            xor edi, edi
+            mov esi, -1
+            jmp chopTree
+        .chopDown:
+            xor edi, edi
+            mov esi, 1
+            jmp chopTree
+        .chopLeft:
+            mov edi, -1
+            xor esi, esi
+            jmp chopTree
+        .chopRight:
+            mov edi, 1
+            xor esi, esi
+            jmp chopTree
+        .cancel:
+            mov dword [GameState], STATE_GAME
+            ret
+
+    ; Chops a tree relative to the player
+    ; @param edi delta x
+    ; @param esi delta y
+    ; @return eax 1 if chopped, 0 if not
+    chopTree:
+        mov eax, [PlayerX]
+        add eax, edi
+
+        mov edx, [PlayerY]
+        add edx, esi
+
+        cmp eax, MapSize
+        jae .done
+
+        cmp edx, MapSize
+        jae .done
+
+        shl edx, 6
+        add edx, eax
+
+        mov rcx, Map
+
+        test byte [rcx + rdx], TILE_TREE
+        jz .done
+
+        and byte [rcx + rdx], ~TILE_TREE
+
+        mov dword [GameState], STATE_GAME
+        mov eax, 1
+
+        ; statistics
+        inc dword [DayTreesChopped]
+        inc dword [TreesChopped]
+        dec dword [DayTurnCount]
+        ret
+
+        .done:
+            xor eax, eax
+            ret
     
     render:
         mov rdi, [stdscr]
@@ -359,19 +566,134 @@ main:
 
         call getch
 
+        ; handle other inputs
         cmp eax, 410 ; resize
         je resize
 
-        cmp eax, 27
+        cmp eax, 27 ; escape
         je exit
 
         cmp dword [GameState], STATE_TUTORIAL1
         je tutorial1input
 
+        cmp dword [GameState], STATE_GAME
+        jne .notMovement
+
+        cmp eax, 'w'
+        je .up
+        cmp eax, 'a'
+        je .left
+        cmp eax, 's'
+        je .down
+        cmp eax, 'd'
+        je .right
+
+        .notMovement:
         mov edi, eax
         call handleChoice
 
     jmp mainloop
+
+    .up:
+        xor edi, edi
+        mov esi, -1
+        jmp playerMove
+
+    .down:
+        xor edi, edi
+        mov esi, 1
+        jmp playerMove
+
+    .left:
+        mov edi, -1
+        xor esi, esi
+        jmp playerMove
+
+    .right:
+        mov edi, 1
+        xor esi, esi
+        jmp playerMove
+
+    ; Checks if the player is next to a tree
+    ; @return eax 1 if true, 0 if false
+    IfNearTree:
+        mov eax, [PlayerY]
+        shl eax, 6
+        add eax, [PlayerX]
+
+        mov rdx, Map
+
+        ; up
+        cmp dword [PlayerY], 0
+        je .down
+        test byte [rdx + rax - MapSize], TILE_TREE
+        jnz .found
+
+        .down:
+            cmp dword [PlayerY], MapSize - 1
+            jae .left
+            test byte [rdx + rax + MapSize], TILE_TREE
+            jnz .found
+        
+        .left:
+            cmp dword [PlayerX], 0
+            je .right
+            test byte [rdx + rax - 1], TILE_TREE
+            jnz .found
+
+        .right:
+            cmp dword [PlayerX], MapSize - 1
+            jae .notFound
+            test byte [rdx + rax + 1], TILE_TREE
+            jnz .found
+        
+        .notFound:
+            xor eax, eax
+            ret
+
+        .found:
+            mov eax, 1
+            ret
+
+    ; Moves the player dx
+    ; @param esi delta x
+    ; @param edi delta y
+    ; @return eax 1 if moved 0 if blocked
+    playerMove:
+        mov eax, [PlayerX]
+        add eax, edi
+
+        mov edx, [PlayerY]
+        add edx, esi
+
+        cmp eax, MapSize
+        jae .blocked
+
+        cmp edx, MapSize
+        jae .blocked
+
+        mov ecx, edx
+        shl ecx, 6
+        add ecx, eax
+
+        test byte [Map + rcx], TILE_TREE | TILE_PROTESTOR
+        jnz .blocked
+
+        mov ecx, [DayTurnCount]
+        cmp ecx, 0
+        jbe .blocked
+
+        dec dword [DayTurnCount]
+
+        mov [PlayerX], eax
+        mov [PlayerY], edx
+
+        mov eax, 1
+        jmp mainloop
+
+        .blocked: 
+            xor eax, eax
+            jmp mainloop
 
     renderMap:
         push rbx
@@ -398,6 +720,19 @@ main:
             mov r13d, MapSize
 
         .width👍:
+            ; Calculate cameras
+            mov eax, r13d
+            shr eax, 1
+            mov ebx, [PlayerX]
+            sub ebx, eax
+            mov [CameraX], ebx
+
+            mov eax, r12d
+            shr eax, 1
+            mov ebx, [PlayerY]
+            sub ebx, eax
+            mov [CameraY], ebx
+
             xor r14d, r14d
 
         .looprow:
@@ -409,17 +744,33 @@ main:
             cmp r15d, r13d
             jae .drawRow
 
-            mov eax, r14d
-            shl eax, 6
-            add eax, r15d
+            mov eax, r15d
+            add eax, [CameraX]
+
+            cmp eax, MapSize
+            jae .outsideMap
+
+            mov edx, r14d
+            add edx, [CameraY]
+
+            cmp edx, MapSize
+            jae .outsideMap
+
+            shl edx, 6
+            add edx, eax
 
             mov rbx, Map
-            movzx eax, byte [rbx + rax]
+            movzx eax, byte [rbx + rdx]
+            jmp .tileLoaded
 
-            mov edx, ' '
-            test al, TILE_TREE
-            jz .checkProtestor
-            mov edx, 0x2663 ; tree
+            .outsideMap:
+                xor eax, eax
+
+            .tileLoaded:
+                mov edx, ' '
+                test al, TILE_TREE
+                jz .checkProtestor
+                mov edx, 0x2663 ; tree
 
             .checkProtestor:
                 test al, TILE_PROTESTOR
@@ -427,11 +778,17 @@ main:
                 mov edx, 'P'
 
             .checkPlayer:
-                cmp r15d, [PlayerX]
+                mov eax, r13d
+                shr eax, 1
+                cmp r15d, eax
                 jne .storeTile
-                cmp r14d, [PlayerY]
+
+                mov eax, r12d
+                shr eax, 1
+                cmp r14d, eax
                 jne .storeTile
-                mov edx, 'Y'
+
+                mov edx, '@'
 
             .storeTile:
                 mov rbx, MapRow
