@@ -21,9 +21,9 @@ Dialog:
 .Tutorial3Dialog:
     db "You can always press the escape key to exit the game.", 10
     db "Your game save will NOT be saved!", 10
-    db "Protestors will spawn at the beginning of each day", 10
+    db "You need to walk to the entrance of the shack to sell trees.", 10
     db 10
-    db "Please, do not cause too much harm to the protesters.", 10
+    db "The shack can be found a little northwes.", 10
     db "Press 1 to continue to the game.", 0
 
 .Day db "Day ", 0

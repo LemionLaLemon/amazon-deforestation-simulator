@@ -2,11 +2,6 @@ default rel
 global main
 
 extern printf
-extern fflush
-extern tcgetattr
-extern tcsetattr
-extern malloc
-extern realloc
 extern rand
 extern srand
 extern time
@@ -34,25 +29,16 @@ extern mvhline
 extern mvvline
 extern acs_map
 extern newwin
-extern delwin
 extern wresize
 extern mvwin
 extern waddstr
-extern wrefresh
 extern werase
 extern wnoutrefresh
 extern wnoutrefresh
 extern doupdate
-extern wmove
 extern waddch
 extern mvwaddnwstr
-extern getmaxx
-extern getmaxy
 extern wprintw
-extern start_color
-extern init_pair
-extern wattron
-extern wattroff
 extern mvwaddstr
 
 ; game assets
@@ -61,18 +47,12 @@ extern mvwaddstr
 
 %define TIOCGWINSZ 0x5413
 %define ECHO 0x0008
-%define ICANON 0x0002
-%define TSANOW 0
 
 %define TILE_EMPTY 0
 %define TILE_TREE (1 << 0)
 %define TILE_PROTESTOR (1 << 1)
 %define TILE_SHACK (1 << 2)
 %define TILE_SHACK_ENTRY (1 << 3)
-
-%define COLOR_GREEN 2
-%define COLOR_YELLOW 3
-%define COLOR_WHITE 7
 
 %define PAIR_TREE 1
 %define PAIR_GROUND 2
@@ -81,38 +61,9 @@ extern mvwaddstr
 
 section .data
     ; magical ANSI incantations
-    CursorMove:
-        db 27, '[%d;%dH', 0
-        .len equ $ - CursorMove - 1
-    CursorHide:
-        db 27, '[?25l', 0
-        .len equ $ - CursorHide  - 1
-    CursorShow:
-        db 27, '[?25h', 0
-        .len equ $ - CursorShow - 1
-    CursorHome:
-        db 27, '[H', 0
-        .len equ $ - CursorHome - 1
-    ClearScreen:
-        db 27, '[2J', 0
-        .len equ $ - ClearScreen - 1
-    EnterAlternateScreen:
-        db 27, '[?1049h', 0
-        .len equ $ - EnterAlternateScreen - 1
-    ExitAlternateScreen:
-        db 27, '[?1049l', 0
-        .len equ $ - ExitAlternateScreen - 1
     BlackScreen:
         db 27, '[40m', 0
         .len equ $ - BlackScreen - 1
-    WhiteScreen:
-        db 27, '[47m', 0
-        .len equ $ - WhiteScreen - 1
-    ResetBackground:
-        db 27, '[49m', 0
-        .len equ $ - ResetBackground - 1
-    space db ' ', 0
-    closeParenthesis db ')', 0
 
     IntegerFormat db "%u", 0
 
@@ -549,7 +500,7 @@ main:
         mov eax, [TreesInventory]
         imul eax, 100
         add [Money], eax
-        mov [TreesInventory], 0
+        mov dword [TreesInventory], 0
 
         ret
 
@@ -1199,7 +1150,7 @@ main:
                 mov edx, ' '
                 test al, TILE_TREE
                 jz .checkProtestor
-                mov edx, 0x2663 ; tree
+                mov edx, Tree ; tree character
 
             .checkProtestor:
                 test al, TILE_PROTESTOR
@@ -1538,7 +1489,6 @@ main:
             ret
 
     exit:
-        sub rsp, 8
         call endwin
 
         mov eax, 60
