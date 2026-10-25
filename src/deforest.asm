@@ -355,9 +355,9 @@ main:
         mov rdx, Tree
         call mvaddwstr
 
-        cmp [DayTurnCount], 0
+        cmp dword [DayTurnCount], 0
         jnz .dayNotOver
-        mov [GameState], STATE_DAY_REPORT
+        mov dword [GameState], STATE_DAY_REPORT
 
         .dayNotOver:
             mov eax, [GameState]
@@ -413,7 +413,7 @@ main:
         jmp render
 
         .next:
-            mov [GameState], STATE_TUTORIAL3 
+            mov dword [GameState], STATE_TUTORIAL3 
             ret
     
     tutorial3:
@@ -426,7 +426,7 @@ main:
         jmp render
 
         .next:
-            mov [GameState], STATE_GAME
+            mov dword [GameState], STATE_GAME
             ret
 
     game:
@@ -639,8 +639,8 @@ main:
 
         .newday:
             inc dword [Day]
-            mov [DayTreesChopped], 0
-            mov [DayTurnCount], TurnsPerDay
+            mov dword [DayTreesChopped], 0
+            mov dword [DayTurnCount], TurnsPerDay
 
             mov eax, [TreesTotal]
             sub eax, [TreesChopped]
@@ -650,15 +650,15 @@ main:
             cmp byte [BribeSuccess], 0
             je .lawyersReturn
 
-            dec [BribeSuccess]
+            dec byte [BribeSuccess]
             mov dword [GameState], STATE_GAME
             ret
             .lawyersReturn:
-                mov [GameState], STATE_DAY_LEGAL_LETTER
+                mov dword [GameState], STATE_DAY_LEGAL_LETTER
                 ret
 
             .gameComplete:
-                mov [GameState], STATE_GAME_FINISHED
+                mov dword [GameState], STATE_GAME_FINISHED
                 ret
 
     dayLegalLetter:
@@ -735,14 +735,14 @@ main:
             test eax, eax
             jnz .bribeDone
 
-            inc [LawyerAggression]
+            inc dword [LawyerAggression]
 
             .bribeDone:
                 mov dword [GameState], STATE_LAWYER_RESPONSE
                 ret
 
     lawyerResponse:
-        cmp [BribeSuccess], 0
+        cmp byte [BribeSuccess], 0
         jnz .BribeSuccess
         jz .BribeFailed
 
@@ -750,8 +750,8 @@ main:
             mov rdi, [DialogWindow]
             mov rsi, Dialog.BribeSuccess
             call waddstr
-            mov [BribeSuccess], -1
-            mov [LawyerAggression], 0
+            mov byte [BribeSuccess], -1
+            mov dword [LawyerAggression], 0
             jmp .done
 
         .BribeFailed:
@@ -767,10 +767,10 @@ main:
 
         %define LawyerAggressionSetpoint 10
         .continue:
-            cmp [LawyerAggression], LawyerAggressionSetpoint
+            cmp dword [LawyerAggression], LawyerAggressionSetpoint
             jg .death
 
-            cmp [BribeSuccess], -1
+            cmp byte [BribeSuccess], -1
             jne .end
 
             mov [BribeSuccess], 7
@@ -780,7 +780,7 @@ main:
                 ret
             
             .death:
-                mov [GameState], STATE_GAME_OVER
+                mov dword [GameState], STATE_GAME_OVER
                 ret
 
     letterShredding:
@@ -1150,7 +1150,7 @@ main:
                 mov edx, ' '
                 test al, TILE_TREE
                 jz .checkProtestor
-                mov edx, Tree ; tree character
+                mov edx, [Tree] ; tree character
 
             .checkProtestor:
                 test al, TILE_PROTESTOR
