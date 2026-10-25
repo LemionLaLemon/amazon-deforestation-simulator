@@ -49,6 +49,11 @@ extern mvwaddnwstr
 extern getmaxx
 extern getmaxy
 extern wprintw
+extern start_color
+extern init_pair
+extern wattron
+extern wattroff
+extern mvwaddstr
 
 ; game assets
 %include "src/dialog.inc"
@@ -62,6 +67,16 @@ extern wprintw
 %define TILE_EMPTY 0
 %define TILE_TREE (1 << 0)
 %define TILE_PROTESTOR (1 << 1)
+%define TILE_SHACK (1 << 2)
+
+%define COLOR_GREEN 2
+%define COLOR_YELLOW 3
+%define COLOR_WHITE 7
+
+%define PAIR_TREE 1
+%define PAIR_GROUND 2
+%define PAIR_PLAYER 3
+%define ATTR_COLOR_PAIR(n) ((n) << 8)
 
 section .data
     ; magical ANSI incantations
@@ -114,8 +129,25 @@ section .data
     %define STATE_GAME 3
     %define STATE_TREE_SELECTION 4
     %define STATE_DAY_REPORT 5
+    %define STATE_DAY_LEGAL_LETTER 6
+    %define STATE_LETTER_SHREDDING 7
+    %define STATE_LAWYER_RESPONSE 8
 
     GameState dd STATE_TUTORIAL1
+
+    Shack:
+        db '  _______', 0
+        db ' /  LOG  \', 0
+        db '/__SHACK__\', 0
+        db ' |       |', 0
+        db ' |   _   |', 0
+        db ' |  | |  |', 0
+
+    %define ShackX 20
+    %define ShackY 23
+    %define ShackW 11
+    %define ShackH 6
+
 section .bss
     Window:
         .rows resw 1
@@ -149,6 +181,8 @@ section .bss
     GameWindowHeight resd 1
     GameWindowWidth resd 1
 
+    DialogWindowHeight resd 1
+
     %define TurnsPerDay 100
     DayTurnCount resd 1
     Day resd 1
@@ -158,9 +192,13 @@ section .bss
     TreesChopped resd 1
     ; day statistics
     DayTreesChopped resd 1
+    TimesBribed resd 1 ; also used for bribe amount calculation
+    BribeSuccess resb 1 ; bool and day tracker
 
     CameraX resd 1
     CameraY resd 1
+
+    LegalLetterY resd 1
 
 section .text
 %macro Cprintf 0
@@ -243,6 +281,7 @@ main:
     mov ecx, [COLS]
     shr ecx, 1
     inc ecx
+    mov [DialogWindowHeight], edi
     call newwin
     test rax, rax
     jz exit
@@ -337,6 +376,12 @@ main:
             je treeSelection
             cmp eax, STATE_DAY_REPORT
             je dayReport
+            cmp eax, STATE_DAY_LEGAL_LETTER
+            je dayLegalLetter
+            cmp eax, STATE_LETTER_SHREDDING
+            je letterShredding
+            cmp eax, STATE_LAWYER_RESPONSE
+            je lawyerResponse
 
             jmp render
 
@@ -468,8 +513,105 @@ main:
             inc dword [Day]
             mov [DayTreesChopped], 0
             mov [DayTurnCount], TurnsPerDay
-            mov [GameState], STATE_GAME
+
+            cmp byte [BribeSuccess], 0
+            je .lawyersReturn
+
+            dec [BribeSuccess]
+            mov dword [GameState], STATE_GAME
             ret
+            .lawyersReturn:
+                mov [GameState], STATE_DAY_LEGAL_LETTER
+                ret
+
+    dayLegalLetter:
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.DailyLegalLetter
+        call waddstr
+
+        AddChoice "1", Choices.ShredLegalLetter, .shred
+
+        AddChoice "2", Choices.BribeLawyers, .bribe
+
+        mov edx, [TimesBribed]
+        mov rdi, [ChoicesWindow]
+        mov rsi, IntegerFormat
+        imul edx, 500
+        add edx, 500 ; adjustment for bribesuccess 0
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, ")"
+        call waddch
+
+        call renderMap
+        jmp render
+
+        .shred:
+            mov dword [LegalLetterY], 0
+            mov dword [GameState], STATE_LETTER_SHREDDING
+            ret
+
+        .bribe:
+            inc [TimesBribed]
+            call rand
+            and eax, 1
+            mov byte [BribeSuccess], al
+            mov dword [GameState], STATE_LAWYER_RESPONSE
+            ret
+    
+    lawyerResponse:
+        cmp [BribeSuccess], 0
+        jnz .BribeSuccess
+        jz .BribeFailed
+
+        .BribeSuccess:
+            mov rdi, [DialogWindow]
+            mov rsi, Dialog.BribeSuccess
+            call waddstr
+            mov [BribeSuccess], -1
+            jmp .done
+
+        .BribeFailed:
+            mov rdi, [DialogWindow]
+            mov rsi, Dialog.BribeFail
+            call waddstr
+            jmp .done
+
+        .done:
+            AddChoice "1", Choices.Next, .continue
+            call renderMap
+            jmp render
+
+        .continue:
+            cmp [BribeSuccess], -1
+            jne .end
+
+            mov [BribeSuccess], 7
+
+            .end:
+                mov dword [GameState], STATE_GAME
+                ret
+
+    letterShredding:
+        mov rdi, [DialogWindow]
+        mov rsi, [LegalLetterY]
+        xor edx, edx
+        mov rcx, Dialog.DailyLegalLetter
+        call mvwaddstr
+
+        inc dword [LegalLetterY]
+
+        mov eax, [LegalLetterY]
+        cmp eax, [DialogWindowHeight]
+        jl .done
+
+        mov dword [GameState], STATE_GAME
+
+        .done:
+            call renderMap
+            jmp render
 
     treeRoutine:
         mov dword [GameState], STATE_TREE_SELECTION

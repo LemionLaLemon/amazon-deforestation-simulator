@@ -1,5 +1,5 @@
 default rel
-global Dialog.WelcomeDialog, Dialog.Tutorial2Dialog, Dialog.Tutorial3Dialog, Dialog.Day, Dialog.TurnsRemaining, Dialog.DayReport, Dialog.TreesChopped, Dialog.TreesChoppedToday, Dialog.ChooseATree
+global Dialog.WelcomeDialog, Dialog.Tutorial2Dialog, Dialog.Tutorial3Dialog, Dialog.Day, Dialog.TurnsRemaining, Dialog.DayReport, Dialog.TreesChopped, Dialog.TreesChoppedToday, Dialog.ChooseATree, Dialog.DailyLegalLetter, Dialog.BribeFail, Dialog.BribeSuccess
 
 section .rodata
 Dialog:
@@ -32,3 +32,17 @@ Dialog:
 .TreesChopped db "Trees Chopped: ", 0
 .TreesChoppedToday db "   Today: ", 0
 .ChooseATree db "Choose a direction to chop in", 10, 0
+
+.DailyLegalLetter:
+    db "Notice to Cease Logging Operations", 10
+    db "You are formally ordered to cease and desist all logging operations.", 10
+    db 10
+    db "Failure to comply will result in immediate termination of your life.", 10
+    db 10
+    db "-Lawyers", 0
+
+.BribeFail:
+    db "Lmao no we're not leaving you alone", 10, 0
+
+.BribeSuccess:
+    db "Fine we'll leave you alone for a week", 10, 0
