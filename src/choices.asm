@@ -1,6 +1,6 @@
 default rel
 
-global Choices.Quit, Choices.CursorPrompt, Choices.Next, Choices.DirUp, Choices.DirDn, Choices.DirR, Choices.DirL, Choices.ChopTree, Choices.CancelTreeSelection, Choices.ShredLegalLetter, Choices.BribeLawyers
+global Choices.Quit, Choices.CursorPrompt, Choices.Next, Choices.DirUp, Choices.DirDn, Choices.DirR, Choices.DirL, Choices.ChopTree, Choices.CancelTreeSelection, Choices.ShredLegalLetter, Choices.BribeLawyers, Choices.SellWood
 
 section .rodata:
 Choices:
@@ -15,3 +15,4 @@ Choices:
 .CancelTreeSelection db "Cancel Tree Selection", 10, 0
 .ShredLegalLetter db "Shred legal letter", 10, 0
 .BribeLawyers db "Bribe the legal team ($", 0
+.SellWood db "Sell your wood ($", 0

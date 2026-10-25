@@ -68,6 +68,7 @@ extern mvwaddstr
 %define TILE_TREE (1 << 0)
 %define TILE_PROTESTOR (1 << 1)
 %define TILE_SHACK (1 << 2)
+%define TILE_SHACK_ENTRY (1 << 3)
 
 %define COLOR_GREEN 2
 %define COLOR_YELLOW 3
@@ -132,21 +133,23 @@ section .data
     %define STATE_DAY_LEGAL_LETTER 6
     %define STATE_LETTER_SHREDDING 7
     %define STATE_LAWYER_RESPONSE 8
+    %define STATE_GAME_OVER 9
 
     GameState dd STATE_TUTORIAL1
 
     Shack:
-        db '  _______', 0
-        db ' /  LOG  \', 0
-        db '/__SHACK__\', 0
-        db ' |       |', 0
-        db ' |   _   |', 0
-        db ' |  | |  |', 0
-
+        db '  _______  '
+        db ' /  LOG  \ '
+        db '/__SHACK__\'
+        db ' |       | '
+        db ' |   _   | '
+        db ' |  | |  | '
     %define ShackX 20
     %define ShackY 23
     %define ShackW 11
     %define ShackH 6
+    %define ShackEntryX (ShackX + 5)
+    %define ShackEntryY (ShackY + ShackH - 1)
 
 section .bss
     Window:
@@ -192,6 +195,7 @@ section .bss
     TreesChopped resd 1
     ; day statistics
     DayTreesChopped resd 1
+    TreesInventory resd 1
     TimesBribed resd 1 ; also used for bribe amount calculation
     BribeSuccess resb 1 ; bool and day tracker
 
@@ -199,6 +203,9 @@ section .bss
     CameraY resd 1
 
     LegalLetterY resd 1
+    LawyerAggression resd 1
+
+    Money resd 1 ; player would be too broke to require a 64 bit int anyways
 
 section .text
 %macro Cprintf 0
@@ -322,6 +329,44 @@ main:
     ; clear 31, 31
     mov byte [Map + 31 * MapSize + 31], TILE_EMPTY
 
+    push r12 ; Y counter
+    push r13; X counter
+
+    mov r12d, ShackY
+
+    .shackLoopY:
+        mov r13d, ShackX
+
+        .shackLoopX:
+            mov eax, r12d
+            shl eax, 6
+            add eax, r13d
+
+            test byte [Map + rax], TILE_TREE
+            jz .shackNotTree
+
+            dec dword [TreesTotal]
+
+            .shackNotTree:
+                mov byte [Map + rax], TILE_SHACK
+                
+                inc r13d
+                cmp r13d, ShackX + ShackW
+                jb .shackLoopX
+
+        inc r12d
+        cmp r12d, ShackY + ShackH
+        jb .shackLoopY
+
+    pop r13
+    pop r12
+
+    mov eax, ShackEntryY
+    shl eax, 6
+    add eax, ShackEntryX
+
+    mov byte [Map + rax], TILE_SHACK_ENTRY
+
     ; initial player position
     mov dword [PlayerX], 31
     mov dword [PlayerY], 31
@@ -382,6 +427,8 @@ main:
             je letterShredding
             cmp eax, STATE_LAWYER_RESPONSE
             je lawyerResponse
+            cmp eax, STATE_GAME_OVER
+            je gameOver
 
             jmp render
 
@@ -455,6 +502,16 @@ main:
         mov rsi, Dialog.TurnsRemaining
         call waddstr
 
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.Money
+        call waddstr
+
+        mov rdi, [DialogWindow]
+        mov rsi, IntegerFormat
+        mov edx, [Money]
+        xor eax, eax
+        call wprintw
+
         call IfNearTree
         test eax, eax
         jz .notNearTree
@@ -462,7 +519,41 @@ main:
         AddChoice "1", Choices.ChopTree, treeRoutine
 
         .notNearTree:
+            call IfNearShackEntry
+            test eax, eax
+            jz .notNearShackEntry
 
+            AddChoice "2", Choices.SellWood, .sellWood
+
+            mov eax, [TreesInventory]
+            imul eax, 100
+            mov rdi, [ChoicesWindow]
+            mov rsi, IntegerFormat
+            mov edx, eax
+            xor eax, eax
+            call wprintw
+
+            mov rdi, [ChoicesWindow]
+            mov esi, ")"
+            call waddch
+
+        .notNearShackEntry:
+            call renderMap
+            jmp render
+
+
+    .sellWood:
+        mov eax, [TreesInventory]
+        imul eax, 100
+        add [Money], eax
+        mov [TreesInventory], 0
+
+        ret
+    
+    gameOver:
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.Death
+        call waddstr
         call renderMap
         jmp render
     
@@ -531,6 +622,11 @@ main:
 
         AddChoice "1", Choices.ShredLegalLetter, .shred
 
+        mov eax, [TimesBribed]
+        imul eax, 500
+        add eax, 500
+        cmp [Money], eax 
+        jl .notEnoughMoneyToBribe
         AddChoice "2", Choices.BribeLawyers, .bribe
 
         mov edx, [TimesBribed]
@@ -545,22 +641,37 @@ main:
         mov rsi, ")"
         call waddch
 
-        call renderMap
-        jmp render
+        .notEnoughMoneyToBribe:
+            call renderMap
+            jmp render
 
         .shred:
             mov dword [LegalLetterY], 0
+            inc dword [LawyerAggression]
             mov dword [GameState], STATE_LETTER_SHREDDING
             ret
 
         .bribe:
-            inc [TimesBribed]
+            mov eax, [TimesBribed]
+            inc eax
+            imul eax, 500
+            sub dword [Money], eax
+
+            inc dword [TimesBribed]
             call rand
+
             and eax, 1
             mov byte [BribeSuccess], al
-            mov dword [GameState], STATE_LAWYER_RESPONSE
-            ret
-    
+
+            test eax, eax
+            jnz .bribeDone
+
+            inc [LawyerAggression]
+
+            .bribeDone:
+                mov dword [GameState], STATE_LAWYER_RESPONSE
+                ret
+
     lawyerResponse:
         cmp [BribeSuccess], 0
         jnz .BribeSuccess
@@ -571,6 +682,7 @@ main:
             mov rsi, Dialog.BribeSuccess
             call waddstr
             mov [BribeSuccess], -1
+            mov [LawyerAggression], 0
             jmp .done
 
         .BribeFailed:
@@ -585,6 +697,9 @@ main:
             jmp render
 
         .continue:
+            cmp [LawyerAggression], 1
+            jg .death
+
             cmp [BribeSuccess], -1
             jne .end
 
@@ -592,6 +707,10 @@ main:
 
             .end:
                 mov dword [GameState], STATE_GAME
+                ret
+            
+            .death:
+                mov [GameState], STATE_GAME_OVER
                 ret
 
     letterShredding:
@@ -607,7 +726,14 @@ main:
         cmp eax, [DialogWindowHeight]
         jl .done
 
+        cmp dword [LawyerAggression], 1
+        jg .dead
+
         mov dword [GameState], STATE_GAME
+        jmp .done
+
+        .dead:
+            mov dword [GameState], STATE_GAME_OVER
 
         .done:
             call renderMap
@@ -684,6 +810,7 @@ main:
         ; statistics
         inc dword [DayTreesChopped]
         inc dword [TreesChopped]
+        inc dword [TreesInventory]
         dec dword [DayTurnCount]
         ret
 
@@ -797,6 +924,47 @@ main:
             mov eax, 1
             ret
 
+        ; Checks if the player is next to the shack entry
+        ; @return eax 1 if true 0 if false
+        IfNearShackEntry:
+        mov eax, [PlayerY]
+        shl eax, 6
+        add eax, [PlayerX]
+
+        mov rdx, Map
+
+        ; up
+        cmp dword [PlayerY], 0
+        je .down
+        test byte [rdx + rax - MapSize], TILE_SHACK_ENTRY
+        jnz .found
+
+        .down:
+            cmp dword [PlayerY], MapSize - 1
+            jae .left
+            test byte [rdx + rax + MapSize], TILE_SHACK_ENTRY
+            jnz .found
+        
+        .left:
+            cmp dword [PlayerX], 0
+            je .right
+            test byte [rdx + rax - 1], TILE_SHACK_ENTRY
+            jnz .found
+
+        .right:
+            cmp dword [PlayerX], MapSize - 1
+            jae .notFound
+            test byte [rdx + rax + 1], TILE_SHACK_ENTRY
+            jnz .found
+        
+        .notFound:
+            xor eax, eax
+            ret
+
+        .found:
+            mov eax, 1
+            ret
+
     ; Moves the player dx
     ; @param esi delta x
     ; @param edi delta y
@@ -818,7 +986,7 @@ main:
         shl ecx, 6
         add ecx, eax
 
-        test byte [Map + rcx], TILE_TREE | TILE_PROTESTOR
+        test byte [Map + rcx], TILE_TREE | TILE_PROTESTOR | TILE_SHACK | TILE_SHACK_ENTRY
         jnz .blocked
 
         mov ecx, [DayTurnCount]
@@ -916,8 +1084,25 @@ main:
 
             .checkProtestor:
                 test al, TILE_PROTESTOR
-                jz .checkPlayer
+                jz .checkShack
                 mov edx, 'P'
+
+            .checkShack:
+                test al, TILE_SHACK | TILE_SHACK_ENTRY
+                jz .checkPlayer
+
+                mov eax, r14d
+                add eax, [CameraY]
+                sub eax, ShackY
+
+                imul eax, ShackW
+
+                mov ecx, r15d
+                add ecx, [CameraX]
+                sub ecx, ShackX
+
+                add eax, ecx
+                movzx edx, byte [Shack + rax]
 
             .checkPlayer:
                 mov eax, r13d

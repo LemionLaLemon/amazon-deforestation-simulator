@@ -1,5 +1,5 @@
 default rel
-global Dialog.WelcomeDialog, Dialog.Tutorial2Dialog, Dialog.Tutorial3Dialog, Dialog.Day, Dialog.TurnsRemaining, Dialog.DayReport, Dialog.TreesChopped, Dialog.TreesChoppedToday, Dialog.ChooseATree, Dialog.DailyLegalLetter, Dialog.BribeFail, Dialog.BribeSuccess
+global Dialog.WelcomeDialog, Dialog.Tutorial2Dialog, Dialog.Tutorial3Dialog, Dialog.Day, Dialog.TurnsRemaining, Dialog.DayReport, Dialog.TreesChopped, Dialog.TreesChoppedToday, Dialog.ChooseATree, Dialog.DailyLegalLetter, Dialog.BribeFail, Dialog.BribeSuccess, Dialog.Money, Dialog.Death
 
 section .rodata
 Dialog:
@@ -46,3 +46,13 @@ Dialog:
 
 .BribeSuccess:
     db "Fine we'll leave you alone for a week", 10, 0
+
+.Money db "Money: ", 0
+
+.Death:
+    db "The lawyers have gotten quite pissed.", 10
+    db "They have decided to take your life.", 10
+    db "You have failed to deforest the amazon.", 10
+    db 10
+    db "Game over", 10
+    db "Press escape to exit", 0
