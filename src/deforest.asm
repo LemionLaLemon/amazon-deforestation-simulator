@@ -134,6 +134,7 @@ section .data
     %define STATE_LETTER_SHREDDING 7
     %define STATE_LAWYER_RESPONSE 8
     %define STATE_GAME_OVER 9
+    %define STATE_GAME_FINISHED 10
 
     GameState dd STATE_TUTORIAL1
 
@@ -429,6 +430,8 @@ main:
             je lawyerResponse
             cmp eax, STATE_GAME_OVER
             je gameOver
+            cmp eax, STATE_GAME_FINISHED
+            je gameComplete
 
             jmp render
 
@@ -549,11 +552,94 @@ main:
         mov [TreesInventory], 0
 
         ret
+
+    gameComplete:
+        mov rdi, [DialogWindow]
+        mov rsi, Dialog.GameComplete
+        call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, Dialog.GameStats
+        call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, Dialog.TreesChopped
+        call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, IntegerFormat
+        mov edx, [TreesChopped]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [ChoicesWindow]
+        mov esi, "/"
+        call waddch
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, IntegerFormat
+        mov edx, [TreesTotal]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [ChoicesWindow]
+        mov esi, 10
+        call waddch
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, Dialog.Money
+        call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, IntegerFormat
+        mov edx, [Money]
+        call wprintw
+
+        call renderMap
+        jmp render
     
     gameOver:
         mov rdi, [DialogWindow]
         mov rsi, Dialog.Death
         call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, Dialog.GameStats
+        call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, Dialog.TreesChopped
+        call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, IntegerFormat
+        mov edx, [TreesChopped]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [ChoicesWindow]
+        mov esi, "/"
+        call waddch
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, IntegerFormat
+        mov edx, [TreesTotal]
+        xor eax, eax
+        call wprintw
+
+        mov rdi, [ChoicesWindow]
+        mov esi, 10
+        call waddch
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, Dialog.Money
+        call waddstr
+
+        mov rdi, [ChoicesWindow]
+        mov rsi, IntegerFormat
+        mov edx, [Money]
+        call wprintw
+
         call renderMap
         jmp render
     
@@ -605,6 +691,11 @@ main:
             mov [DayTreesChopped], 0
             mov [DayTurnCount], TurnsPerDay
 
+            mov eax, [TreesTotal]
+            sub eax, [TreesChopped]
+            test eax, eax
+            jz .gameComplete
+
             cmp byte [BribeSuccess], 0
             je .lawyersReturn
 
@@ -615,11 +706,38 @@ main:
                 mov [GameState], STATE_DAY_LEGAL_LETTER
                 ret
 
-    dayLegalLetter:
-        mov rdi, [DialogWindow]
-        mov rsi, Dialog.DailyLegalLetter
-        call waddstr
+            .gameComplete:
+                mov [GameState], STATE_GAME_FINISHED
+                ret
 
+    dayLegalLetter:
+        cmp dword [LawyerAggression], 9
+        jge .Level3
+
+        cmp dword [LawyerAggression], 8
+        jge .Level2
+
+        jmp .Level1
+
+        .Level1:
+            mov rdi, [DialogWindow]
+            mov rsi, Dialog.DailyLegalLetter
+            call waddstr
+            jmp .continue
+
+        .Level2:
+            mov rdi, [DialogWindow]
+            mov rsi, Dialog.DailyLegalLetterL2
+            call waddstr
+            jmp .continue
+        
+        .Level3:
+            mov rdi, [DialogWindow]
+            mov rsi, Dialog.DailyLegalLetterL3
+            call waddstr
+            jmp .continue
+
+        .continue:
         AddChoice "1", Choices.ShredLegalLetter, .shred
 
         mov eax, [TimesBribed]
@@ -696,8 +814,9 @@ main:
             call renderMap
             jmp render
 
+        %define LawyerAggressionSetpoint 10
         .continue:
-            cmp [LawyerAggression], 1
+            cmp [LawyerAggression], LawyerAggressionSetpoint
             jg .death
 
             cmp [BribeSuccess], -1
@@ -726,7 +845,7 @@ main:
         cmp eax, [DialogWindowHeight]
         jl .done
 
-        cmp dword [LawyerAggression], 1
+        cmp dword [LawyerAggression], LawyerAggressionSetpoint
         jg .dead
 
         mov dword [GameState], STATE_GAME
